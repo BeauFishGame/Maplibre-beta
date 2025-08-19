@@ -1,0 +1,1498 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Auckland Waikato Fishing Map</title>
+  <link rel="icon" href="../images/favicon.png" type="image/png">
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+  <script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
+
+  <style>
+    body { margin: 0; padding: 0; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+
+    .map-overlay {
+      display: none;
+      font: 12px/20px Arial, sans-serif;
+      padding: 10px;
+      position: absolute;
+      right: 0;
+      top: 0;
+      width: 230px;
+      overflow: hidden;
+      white-space: normal;
+      transition: opacity 0.3s ease;
+    }
+
+    .map-overlay-inner {
+      position: fixed;
+      top: 80px;                /* distance from the top */
+      left: 10px;
+      width: 400px;
+      height: calc(100vh - 90px); /* always stretch to bottom */
+      padding: 15px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0,0,0,.5);
+      z-index: 999;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel-scroll {
+      padding-top: 30px;
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .map-overlay-inner hr {
+      margin: 5px 0;
+      border: none;
+      border-top: 2px solid #ccc;
+    }
+
+    #zoom-level {
+      position: absolute; bottom: 10px; left: 1000px;
+      background: rgba(255,255,255,0.8); padding: 6px 10px;
+      font-family: Arial, sans-serif; font-size: 14px; border-radius: 4px;
+      z-index: 1; user-select: none; pointer-events: none;
+    }
+
+    .card-title { font-family: Arial, sans-serif; font-size: 25px; font-weight: bold; color: #2a2a2a; }
+
+    .card-list{
+      list-style-type: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      font-size: 15px; padding-left: 0; margin: 0;
+    }
+
+    .subtitle-main { font-size: 1.3em; font-weight: bold; color: #333; margin-top: 4px; }
+    .directions-inline-image { width: 20px; height: 20px; cursor: pointer; opacity: 0.85; transition: transform 0.2s, opacity 0.2s; }
+    .directions-inline-image:hover { transform: scale(1.1); opacity: 1; }
+    .subtitle-region { font-size: 1.em; font-style: italic; color: #666; margin-bottom: 4px; }
+
+   
+    #filter-toggle-btn:hover { background-color: #f0f0f0; }
+    #actions button:active { transform: translateY(1px); }
+
+
+    .close-button {
+      position: absolute; top: 10px; right: 15px;
+      background: transparent; border: none; font-size: 24px; color: #333; cursor: pointer; z-index: 10000;
+    }
+
+    #top-bar {
+      position: relative; height: 70px; background-color: rgba(7,7,7,1);
+      display: flex; align-items: center; padding: 0 20px; z-index: 10;
+    }
+    #top-bar .logo { height: 70px; z-index: 11; }
+
+  
+
+    #search-container input[type="text"] {
+      width: 100%; padding: 10px 14px; font-size: 14px; border: none; border-radius: 20px;
+      background-color: rgba(255,255,255,0.2); color: #e7e2e2; outline: none;
+      transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    #search-container input[type="text"]:focus {
+      background-color: rgba(255,255,255,0.3); box-shadow: 0 0 0 2px rgba(255,255,255,0.3);
+    }
+
+    #suggestions {
+      position: absolute; top: 100%; left: 0; width: 100%;
+      background-color: rgba(255,255,255,0.95); border-radius: 0 0 20px 20px;
+      overflow: hidden; max-height: 300px; overflow-y: auto; display: none; z-index: 11;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2); border: none; font-family: Arial, sans-serif;
+    }
+    .suggestion { padding: 8px 10px; font-weight: 200; cursor: pointer; border-bottom: 1px solid #f0f0f0; }
+    .suggestion:hover { background: #f0f0f0; }
+    .suggestion-header {
+      font-weight: bold; font-size: 0.85rem; padding: 8px 10px; background-color: #f9f9f9; color: #444;
+      text-transform: uppercase; letter-spacing: 0.5px; border-top: 1px solid #ddd; border-bottom: 1px solid #ddd;
+    }
+    .river-header { border-left: 4px solid #0072B2; }
+    .point-header { border-left: 4px solid #D55E00; }
+    .section { font-size: 80%; }
+    .region { font-style: italic; font-size: 75%; color: #888; }
+    .maplibregl-ctrl-top-right { top: 70px; }
+
+
+    .modal { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); }
+    .modal.show { display: flex; justify-content: center; align-items: center; }
+    .modal-content { max-width: 80%; max-height: 80%; border-radius: 6px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+    .close-modal { position: absolute; top: 30px; right: 50px; color: white; font-size: 40px; font-weight: bold; cursor: pointer; }
+
+.basemap-btn {
+  display: block;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 10px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  text-align: left;
+  background-color: #e9edf3;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.basemap-btn:hover {
+  background-color: #d1d5db;
+}
+
+.basemap-btn.active {
+  background-color: #10b981; /* green highlight */
+  color: white;
+  font-weight: bold;
+}
+
+
+#actions button {
+  height: 70%;          /* 70% of top bar height */
+  aspect-ratio: 1 / 1;  /* keep square */
+  border-radius: 20%;   /* proportional rounding */
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: none;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  cursor: pointer;
+}
+
+/* Desktop (optional center) */
+#search-container{
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20vw;
+  min-width: 200px;
+  z-index: 11;
+}
+
+/* Mobile */
+@media (max-width: 768px){
+  #search-container{
+    position: static;   /* kill absolute centering */
+    left: auto;
+    transform: none;
+    flex: 1 1 auto;     /* stretch between logo and actions */
+    min-width: 0;
+    max-width: none;
+    margin-right: 30px; /* pick ONE value you want */
+  }
+}
+
+
+@media (max-width: 768px){
+  #top-bar{ height: 56px; padding: 0 10px; }
+  #top-bar .logo{ display: none; }        /* your request */
+  #search-container{ flex: 1 1 auto; }    /* search gets the space */
+ 
+  #actions button{
+    width: 44px; height: 44px;             /* bigger tap targets on phones */
+    border-radius: 10px;
+  }
+  #actions button img{ width: 22px; height: 22px; }
+
+  /* suggestions list stays attached to the input but won’t run under buttons */
+  #suggestions{ max-height: 45vh; }
+
+  /* MapLibre controls away from the bar */
+  .maplibregl-ctrl-top-right{ top: 8px; }
+}
+
+@media (max-width: 768px) {
+  /* Move map controls to bottom left on mobile */
+  .maplibregl-ctrl-top-right {
+    top: auto !important;      /* cancel top positioning */
+    right: auto !important;    /* cancel right positioning */
+    bottom: 10px;              /* set distance from bottom */
+    left: 10px;                /* set distance from left */
+    flex-direction: column;    /* keep stacked vertically */
+  }
+}
+
+/* Bottom sheet behavior on small screens */
+@media (max-width: 768px) {
+  .map-overlay-inner {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 60vh;                       /* bottom sheet height */
+    border-radius: 14px 14px 0 0;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+  .panel-scroll { padding-top: 36px; }  /* clear the close button */
+  .close-button { top: 8px; right: 12px; font-size: 28px; }
+}
+
+
+@media (max-width: 768px) {
+  #filter-toggle-btn, #basemap-toggle-btn {
+    padding: 12px;
+    border-radius: 10px;
+  }
+  #filter-toggle-btn img, #basemap-toggle-btn img {
+    width: 24px; height: 24px;
+  }
+  
+}
+
+
+@media (max-width: 768px) {
+  .maplibregl-ctrl-bottom-right {
+    margin: 0 10px calc(10px + env(safe-area-inset-bottom)) 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .map-overlay-inner { box-shadow: 0 6px 16px rgba(0,0,0,.25); }
+  .source-card { border-radius: 8px; }
+  .basemap-btn { padding: 12px; }
+}
+
+/* Actions area inside the top bar */
+#actions{
+  margin-left: auto;                 /* pushes actions to the right */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#actions #filter-toggle-btn,
+#actions #basemap-toggle-btn{
+  position: static;                  /* cancel old absolute positioning */
+  right: auto; top: auto;
+  display: grid; place-items: center;
+  width: 40px; height: 40px;
+  padding: 0;
+  background: #fff;
+  border: none; border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  cursor: pointer;
+}
+
+#actions #filter-toggle-btn img,
+#actions #basemap-toggle-btn img{
+  width: 20px; height: 20px; display: block;
+}
+
+/* Mobile scaling */
+@media (max-width: 768px){
+  #actions #filter-toggle-btn,
+  #actions #basemap-toggle-btn{
+    width: 44px; height: 44px; border-radius: 10px;
+  }
+  #actions #filter-toggle-btn img,
+  #actions #basemap-toggle-btn img{
+    width: 22px; height: 22px;
+  }
+}
+
+
+
+@media (max-width: 768px) {
+  #top-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;              /* nice breathing room */
+  }
+
+
+
+  #search-container input[type="text"] {
+    width: 100%;
+    font-size: 16px;       /* avoid iOS zoom */
+  }
+
+  /* The action buttons live inside #actions now; keep them static */
+  #actions #filter-toggle-btn,
+  #actions #basemap-toggle-btn {
+    position: static;      /* ensure NOT absolute on mobile */
+  }
+}
+</style>
+</head>
+
+<body>
+
+  <div id="imageModal" class="modal">
+    <span class="close-modal" onclick="closeModal()">&times;</span>
+    <img class="modal-content" id="modalImage">
+  </div>
+
+  <div id="map"></div>
+
+<div id="top-bar">
+  <a href="https://www.fishandgame.org.nz/" target="_blank">
+    <img class="logo" src="../images/White%20LS.png" alt="Logo">
+  </a>
+
+  <div id="search-container">
+    <input type="text" id="search" placeholder="Search water and points..." autocomplete="off" />
+    <div id="suggestions"></div>
+  </div>
+
+  <!-- NEW: actions live inside the bar -->
+  <div id="actions">
+    <button onclick="toggleBasemaps()" id="basemap-toggle-btn" aria-label="Basemaps">
+      <img src="../images/Layers.svg" alt="">
+    </button>
+    <button onclick="toggleFilters()" id="filter-toggle-btn" aria-label="Filters">
+      <img src="../images/Filters.svg" alt="">
+    </button>
+  </div>
+</div>
+
+
+  <!-- ========================================================= -->
+  <!-- SHOWCARD -->
+  <!-- ========================================================= -->
+
+  <div id="combined-filters" style="display:none;">
+    <div class="map-overlay-inner">
+      <button class="close-button" onclick="openPanel(null)">&times;</button>
+      <div class="panel-scroll">
+
+        <style>
+          #combined-filters, 
+          #combined-filters * {  font-family: "Arial", sans-serif;}
+          .filters-body{padding:6px 0 0;}
+          .source-card{background:#f6f7f9;border:1px solid #e2e5ea;border-radius:10px;margin-bottom:10px;overflow:hidden}
+          .source-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;background:#e9edf3;cursor:pointer}
+          .source-name{font-weight:700;font-size:13px;color:#1f2937}
+          .source-controls{display:flex;align-items:center;gap:8px}
+          .btn{appearance:none;border:0;border-radius:8px;background:#374151;color:#fff;padding:6px 10px;cursor:pointer;font-size:12px}
+          .btn[aria-pressed="true"]{background:#10b981}
+          .btn.small{padding:4px 8px;font-size:11px}
+          .source-body{display:none;padding:10px 12px;background:#fff;border-top:1px solid #e2e5ea}
+          .group{margin-bottom:12px}
+          .group-title{font-size:12px;font-weight:700;margin-bottom:6px;color:#374151}
+          .option{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:12px}
+          .option input{cursor:pointer}
+          .hint{font-size:11px;opacity:.8}
+        </style>
+
+        <div id="filters-body" class="filters-body">
+
+          <!-- ================= WATERWAY DATA ================= -->
+          <div class="source-card" data-source="waterways">
+            <div class="source-head">
+              <div class="source-name">Waterway Layers</div>
+              <div class="source-controls">
+                <button class="btn toggle-visible" aria-pressed="true" data-source="waterways">Shown</button>
+                <button class="btn small toggle-expand" aria-expanded="false">Options ▾</button>
+              </div>
+            </div>
+            <div class="source-body">
+
+              <div class="group" data-group="w-method" data-type="radioOne">
+                <div class="group-title">Allowed Method</div>
+                <label class="option"><input type="radio" name="w-method" value="__ALL__" checked> ALL</label>
+                <label class="option"><input type="radio" name="w-method" value="fly"> Fly</label>
+                <label class="option"><input type="radio" name="w-method" value="spin"> Spin</label>
+                <label class="option"><input type="radio" name="w-method" value="bait"> Bait</label>
+                <label class="option"><input type="radio" name="w-method" value="fly_only"> Fly only</label>
+              </div>
+
+              <div class="group" data-group="w-type" data-type="radioOne">
+                <div class="group-title">Waterway type</div>
+                <label class="option"><input type="radio" name="w-type" value="__ALL__" checked> ALL</label>
+                <label class="option"><input type="radio" name="w-type" value="river"> Rivers/streams</label>
+                <label class="option"><input type="radio" name="w-type" value="lake"> Lakes</label>
+                <label class="option"><input type="radio" name="w-type" value="canal"> Canals</label>
+                <label class="option"><input type="radio" name="w-type" value="pond"> Ponds</label>
+              </div>
+
+              <div class="group" data-group="w-open" data-type="radioOne">
+                <div class="group-title">Open</div>
+                <label class="option"><input type="radio" name="w-open" value="style_today" checked> Color code by open/closed based on todays date</label>
+                <label class="option"><input type="radio" name="w-open" value="filter_today"> Show only waterways open today</label>
+              </div>
+
+              <div class="group" data-group="w-fishery" data-type="checkboxAny">
+                <div class="group-title">Fishery type</div>
+                <label class="option"><input type="checkbox" data-role="all" checked> All</label>
+                <label class="option"><input type="checkbox" value="back_country" checked> Back country</label>
+                <label class="option"><input type="checkbox" value="sea_run_salmon" checked> Sea-run salmon fishery</label>
+                <label class="option"><input type="checkbox" value="designated" checked> Designated water</label>
+                <label class="option"><input type="checkbox" value="controlled" checked> Controlled fishery</label>
+                <label class="option"><input type="checkbox" value="junior" checked> Junior fishery</label>
+                <label class="option"><input type="checkbox" value="stocked" checked> Stocked fishery</label>
+                <label class="option"><input type="checkbox" value="coarse" checked> Coarse fishery</label>
+              </div>
+
+              <div class="group" data-group="w-species" data-type="checkboxAny">
+                <div class="group-title">Known Species</div>
+                <label class="option"><input type="checkbox" data-role="all" checked> All</label>
+                <label class="option"><input type="checkbox" value="rainbow_trout" checked> Rainbow Trout</label>
+                <label class="option"><input type="checkbox" value="brown_trout" checked> Brown Trout</label>
+                <label class="option"><input type="checkbox" value="perch" checked> Perch</label>
+                <label class="option"><input type="checkbox" value="tench" checked> Tench</label>
+                <label class="option"><input type="checkbox" value="rudd" checked> Rudd</label>
+                <label class="option"><input type="checkbox" value="brook_trout" checked> Brook Trout</label>
+                <label class="option"><input type="checkbox" value="sockeye_salmon" checked> Sockeye salmon</label>
+                <label class="option"><input type="checkbox" value="chinook_salmon" checked> Chinook salmon</label>
+              </div>
+            </div>
+          </div>
+
+          <!-- ================= POINT DATA ================= -->
+          <div class="source-card" data-source="points">
+            <div class="source-head">
+              <div class="source-name">Point Layers</div>
+              <div class="source-controls">
+                <button class="btn toggle-visible" aria-pressed="true" data-source="points">Shown</button>
+                <button class="btn small toggle-expand" aria-expanded="false">Options ▾</button>
+              </div>
+            </div>
+            <div class="source-body">
+              <div class="group" data-group="p-type" data-type="checkboxAny">
+                <div class="group-title">Point Type</div>
+                <label class="option"><input type="checkbox" data-role="all" checked> Select all</label>
+
+                <!-- Values map to your existing 'point_type' field -->
+                <label class="option"><input type="checkbox" value="AccessPoint" checked> F&amp;G Access</label>
+                <label class="option"><input type="checkbox" value="WalkingFGAccess" checked> F&amp;G Tramping Access</label>
+                <label class="option"><input type="checkbox" value="4x4Access" checked> F&amp;G 4x4 Access</label>
+                <label class="option"><input type="checkbox" value="BoatRamp" checked> Boat ramp</label>
+                <label class="option"><input type="checkbox" value="FlyFishing" checked> Fishing spot - Fly</label>
+                <label class="option"><input type="checkbox" value="Jigging" checked> Fishing spot - Jigging</label>
+                <label class="option"><input type="checkbox" value="Trolling" checked> Fishing spot - Trolling</label>
+                <label class="option"><input type="checkbox" value="Store" checked> Fly fishing stores</label>
+                <label class="option"><input type="checkbox" value="Lodge" checked> Fly fishing lodgees</label>
+                <label class="option"><input type="checkbox" value="Hut" checked> DOC Huts</label>
+                <label class="option"><input type="checkbox" value="Campsite" checked> DOC Campgrounds</label>
+                <label class="option"><input type="checkbox" value="FlowStation" checked> River flow monitoring stations</label>
+              </div>
+            </div>
+          </div>
+
+          <!-- ========== PUBLIC ACCESS & PROPERTY LAYERS ========== -->
+          <div class="source-card" data-source="publicAccess">
+            <div class="source-head">
+              <div class="source-name">Public Access &amp; Property Layers</div>
+              <div class="source-controls">
+                <button class="btn toggle-visible" aria-pressed="true" data-source="publicAccess">Shown</button>
+                <button class="btn small toggle-expand" aria-expanded="false">Options ▾</button>
+              </div>
+            </div>
+            <div class="source-body">
+             <div class="hint">
+  <a href="https://www.herengaanuku.govt.nz/types-of-access" target="_blank">
+    Learn more about legal public access in NZ
+  </a>
+</div>
+            </div>
+          </div>
+
+          <!-- ================= FISH & GAME REGIONS ================= -->
+          <div class="source-card" data-source="regions">
+            <div class="source-head">
+              <div class="source-name">Fish &amp; Game Regions</div>
+              <div class="source-controls">
+                <button class="btn toggle-visible" aria-pressed="true" data-source="regions">Shown</button>
+                <button class="btn small toggle-expand" aria-expanded="false">Options ▾</button>
+              </div>
+            </div>
+            <div class="source-body">
+              <div class="hint">Show/Hide toggles outlines + labels together.</div>
+            </div>
+          </div>
+
+        </div><!-- /filters-body -->
+
+        <script>
+          // Expand/collapse UI (no map dependency)
+          document.querySelectorAll('#filters-body .toggle-expand').forEach(btn=>{
+            btn.addEventListener('click', e=>{
+              const body = e.target.closest('.source-card').querySelector('.source-body');
+              const open = body.style.display === 'block';
+              body.style.display = open ? 'none' : 'block';
+              e.target.setAttribute('aria-expanded', String(!open));
+              e.target.textContent = open ? 'Options ▾' : 'Options ▴';
+            });
+          });
+
+          // “Select all” behavior for multi groups
+          document.querySelectorAll('#filters-body .group[data-type="checkboxAny"]').forEach(group=>{
+            const allBox = group.querySelector('input[data-role="all"]');
+            const boxes = Array.from(group.querySelectorAll('input[type="checkbox"]:not([data-role="all"])'));
+            if(allBox){
+              allBox.addEventListener('change', ()=> boxes.forEach(cb=> cb.checked = allBox.checked));
+              boxes.forEach(cb=>{
+                cb.addEventListener('change', ()=>{
+                  if(!cb.checked) allBox.checked = false;
+                  if(boxes.every(b=>b.checked)) allBox.checked = true;
+                });
+              });
+            }
+          });
+
+          // Debounce helper to avoid spamming setFilter
+          let filterTimer = null;
+          function scheduleApply(fn){
+            if (filterTimer) cancelAnimationFrame(filterTimer);
+            let t;
+            filterTimer = requestAnimationFrame(()=>{
+              clearTimeout(t);
+              t = setTimeout(()=>fn(), 120);
+            });
+          }
+
+          // Expose a function so we can wire MapLibre once the map exists
+          window.setupAWFilters = function(map){
+            if (window.__filtersWired) return;
+            window.__filtersWired = true;
+
+            const LAYERS = {
+              waterways: ['AW Rivers-line','AW Rivers-fill'],
+              points: ['data-points-all'],
+              publicAccess: ['PublicAccessAreas-fill'],
+              regions: ['FG Regions-line','nz-region-labels']
+            };
+
+            const PROPS = {
+              waterways: {
+                fly: 'fly',
+                spin: 'spin',
+                bait: 'bait',
+                closed: 'permanently_closed',
+                open_start: 'open_date_unix',
+                open_end: 'close_date_unix',
+                type: null,     // supply when available
+                fishery: null,  // supply when available
+                species: null   // supply when available
+              },
+              points: { type: 'point_type' }
+            };
+
+            const filtersRoot = document.getElementById('filters-body');
+
+            // Helpers
+            const getRadio = (group)=> {
+              const el = filtersRoot.querySelector(`.group[data-group="${group}"] input[type="radio"]:checked`);
+              return el ? el.value : null;
+            };
+            const getChecks = (group)=> {
+              const allBox = filtersRoot.querySelector(`.group[data-group="${group}"] input[data-role="all"]`);
+              const boxes = [...filtersRoot.querySelectorAll(`.group[data-group="${group}"] input[type="checkbox"]:not([data-role="all"])`)];
+              if (allBox && allBox.checked) return null; // null = all selected
+              const selected = boxes.filter(b=>b.checked).map(b=>b.value);
+              return selected.length ? selected : []; // [] = none
+            };
+            const setVisibility = (ids, visible)=>{
+              ids.forEach(id=>{
+                if (map.getLayer(id)) map.setLayoutProperty(id,'visibility', visible ? 'visible':'none');
+              });
+            };
+
+            // Master show/hide
+            document.querySelectorAll('#filters-body .toggle-visible').forEach(btn=>{
+              btn.addEventListener('click', e=>{
+                const pressed = e.target.getAttribute('aria-pressed') === 'true';
+                const src = e.target.dataset.source;
+                e.target.setAttribute('aria-pressed', String(!pressed));
+                e.target.textContent = pressed ? 'Hidden' : 'Shown';
+                setVisibility(LAYERS[src] || [], !pressed);
+              });
+            });
+
+            // ====== Filter application with no-op guard ======
+        const lastFilters = Object.create(null); // keyed by layerId
+
+function safeSetFilter(layerId, expr) {
+  const json = JSON.stringify(expr);
+  if (lastFilters[layerId] === json) return; // no-op for this specific layer
+  lastFilters[layerId] = json;
+  if (map.getLayer(layerId)) map.setFilter(layerId, expr);
+}
+
+            function applyWaterwayFilters(){
+              const m = getRadio('w-method');             // __ALL__, fly, spin, bait, fly_only
+              const openMode = getRadio('w-open');        // style_today, filter_today
+              const wtype = getRadio('w-type');           // __ALL__, river, lake, canal, pond
+              const fishery = getChecks('w-fishery');     // null (all) | [] none | [...]
+              const species = getChecks('w-species');     // null (all) | [] none | [...]
+
+              const p = PROPS.waterways;
+              const clauses = [];
+
+              if (m && m !== '__ALL__') {
+                if (m === 'fly_only') {
+                  clauses.push(['all',
+                    ['==',['get',p.fly],1],
+                    ['==',['get',p.spin],0],
+                    ['==',['get',p.bait],0],
+                    ['==',['get',p.closed],0]
+                  ]);
+                } else if (['fly','spin','bait'].includes(m)) {
+                  clauses.push(['==',['get',p[m]],1]);
+                }
+              }
+
+              if (wtype && wtype !== '__ALL__' && p.type) {
+                clauses.push(['==', ['get', p.type], wtype]);
+              }
+
+              if (fishery && fishery.length && p.fishery) {
+                clauses.push(['in', ['get', p.fishery], ['literal', fishery]]);
+              }
+
+              if (species && species.length && p.species) {
+                clauses.push(['in', ['get', p.species], ['literal', species]]);
+              }
+
+              if (openMode === 'filter_today') {
+                const today = window.__TODAY_UNIX__;
+                clauses.push(['all',
+                  ['<=', ['get', p.open_start], today],
+                  ['>=', ['get', p.open_end], today]
+                ]);
+              }
+
+              const finalExpr = clauses.length ? ['all', ...clauses] : true;
+              (LAYERS.waterways || []).forEach(id => safeSetFilter(id, finalExpr));
+            }
+
+            function applyPointFilters(){
+              const selected = getChecks('p-type'); // null=all; []=none; otherwise list
+              let expr = true;
+              if (selected === null) {
+                expr = true;
+              } else if (selected.length === 0) {
+                expr = ['==', ['get','point_type'], '__NONE__']; // hide all
+              } else {
+                expr = ['in', ['get', PROPS.points.type], ['literal', selected]];
+              }
+             (LAYERS.points || []).forEach(id => safeSetFilter(id, expr));
+            }
+
+            // One change handler for all groups, debounced
+            filtersRoot.addEventListener('change', (e)=>{
+              const container = e.target.closest('.source-card');
+              if(!container) return;
+              const src = container.dataset.source;
+              scheduleApply(()=>{
+                if (src === 'waterways') applyWaterwayFilters();
+                if (src === 'points') applyPointFilters();
+              });
+            });
+
+            // Apply once layers are present
+            function applyAllIfReady(){
+              if (map.getLayer('AW Rivers-line') && map.getLayer('data-points-all')) {
+                applyWaterwayFilters();
+                applyPointFilters();
+              }
+            }
+            map.on('idle', applyAllIfReady);
+          };
+        </script>
+      </div>
+    </div>
+    <div id="zoom-level"></div>
+
+  </div>
+  <!-- ========================================================= -->
+
+  
+
+<div id="combined-basemaps" style="display:none;">
+  <div class="map-overlay-inner">
+    <button class="close-button" onclick="openPanel(null)">&times;</button>
+    <div class="panel-scroll">
+
+      <div class="basemap-body">
+        <div class="source-card">
+          <div class="source-head">
+            <div class="source-name">Basemaps</div>
+          </div>
+          <div class="source-controls">
+            <button class="basemap-btn" data-basemap="Satellite">LINZ Satellite</button>
+            <button class="basemap-btn" data-basemap="TopoLite">LINZ Topo Lite</button>
+            <button class="basemap-btn" data-basemap="Topo">LINZ Topo50</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+  <div class="map-overlay" id="properties"></div>
+
+  <script>
+    const styleURL = 'https://basemaps.linz.govt.nz/v1/styles/topo-raster.json?api=d01hep5551e30kxb7w85hck49tp';
+    // const TODAY_UNIX = Math.floor(Date.now()/1000); // cache once per load 
+     
+    const TODAY_UNIX = 1786611515
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: styleURL,
+      center: [175.6, -38.1],
+      minZoom: 5,
+      zoom: 5
+    });
+
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
+    map.addControl(new maplibregl.GeolocateControl({
+      positionOptions: { enableHighAccuracy: true },
+      trackUserLocation: true,
+      showUserHeading: true
+    }));
+    map.dragRotate.disable();
+    map.touchZoomRotate.disableRotation();
+
+    function openImageModal(imageUrl) {
+      const modal = document.getElementById("imageModal");
+      const modalImg = document.getElementById("modalImage");
+      modalImg.src = imageUrl;
+      modal.classList.add("show");
+      modal.onclick = function(event) { if (event.target === modal) closeModal(); };
+    }
+    function closeModal() {
+      const modal = document.getElementById("imageModal");
+      modal.classList.remove("show");
+      modal.onclick = null;
+    }
+
+    // Panel logic
+    let activePanel = null;
+    document.addEventListener('click', function (event) {
+      const filtersEl = document.getElementById('combined-filters');
+      const filtersBtn = document.getElementById('filter-toggle-btn');
+      if (filtersEl.style.display === 'block') {
+        if (!filtersEl.contains(event.target) && !filtersBtn.contains(event.target)) {
+          openPanel(null);
+        }
+      }
+    });
+
+
+  function openPanel(which) {
+  const cardEl = document.getElementById('properties');
+  const filtersEl = document.getElementById('combined-filters');
+  const basemapsEl = document.getElementById('combined-basemaps');
+
+  // Hide all first
+  cardEl.style.display = 'none';
+  filtersEl.style.display = 'none';
+  basemapsEl.style.display = 'none';
+  activePanel = null;
+
+  if (which === 'card') {
+    cardEl.style.display = 'block';
+    activePanel = 'card';
+  } else if (which === 'filters') {
+    filtersEl.style.display = 'block';
+    activePanel = 'filters';
+  } else if (which === 'basemaps') {
+    basemapsEl.style.display = 'block';
+    activePanel = 'basemaps';
+  }
+}
+
+    
+   function toggleFilters(event) {
+  if (activePanel === 'filters') {
+    openPanel(null);
+  } else {
+    openPanel('filters');
+  }
+}
+
+function toggleBasemaps(event) {
+  if (activePanel === 'basemaps') {
+    openPanel(null);
+  } else {
+    openPanel('basemaps');
+  }
+}
+
+
+
+    const card = document.getElementById('properties');
+
+    const pointTypeDefaultImages = {
+      'AccessPoint': 'images/Slide1.png',
+      'TrampingAccess': 'images/Slide2.png',
+      '4x4Access': 'images/Slide3.png',
+      'BoatRamp': 'images/Slide4.png',
+      'Trolling': 'images/Slide5.png',
+      'Toilet': 'images/Slide6.png',
+      'Jigging': 'images/Slide7.png',
+      'FlyFishing': 'images/Slide8.png',
+      'Warning': 'images/Slide9.png',
+      'DOC Hut': 'images/Slide10.png',
+      'DOC Campground': 'images/Slide11.png',
+    };
+
+    const showCard = (feature) => {
+      const props = feature.properties;
+      const displayFields = {
+        methods: 'Method',
+        open_season: 'Open',
+        limit_trout: 'Trout Limit',
+        Description: "Description",
+        additional_requirements: "Additional Requirements",
+      };
+
+      const isValidPointType = props.point_type && props.point_type.toLowerCase() !== 'na';
+      const typeImage = isValidPointType ? pointTypeDefaultImages[props.point_type] : null;
+      const extraImages = [props.Image1, props.Image2, props.Image3].filter(url => url && url.trim() !== '');
+      const photoList = (typeImage ? [typeImage] : []).concat(extraImages);
+
+      let content = `
+<div class="map-overlay-inner">
+  <div class="map-overlay-drag-handle"></div>
+  <button class="close-button" onclick="openPanel(null)">&times;</button>
+  <div class="panel-scroll">
+`;
+
+      if (photoList.length > 0) {
+        content += `
+  <div class="card-image-container" style="margin-bottom: 10px;">
+    <img id="cardMainImage" src="${photoList[0]}" 
+      alt="Location Photo"
+      onclick="openImageModal('${photoList[0]}')"
+      style="width: 100%; height: 160px; object-fit: cover; object-position: center; border-radius: 6px; cursor: pointer;">
+    ${photoList.length > 1 ? `
+    <div class="carousel-controls" style="display: flex; justify-content: space-between; margin-top: 4px;">
+      <button onclick="prevImage()" class="carousel-button">❮</button>
+      <button onclick="nextImage()" class="carousel-button">❯</button>
+    </div>` : ''}
+  </div>
+`;
+      }
+
+      content += `
+  <code class="card-title">${props.Water || props.name || props.Title || 'No Title'}</code>
+`;
+      if (props.subtitle || (typeof props.Section === 'string' && props.Section.trim() !== '')) {
+        const subtitleText = props.subtitle || props.Section;
+        content += `<div class="card-subtitle subtitle-main">${subtitleText}`;
+
+        if (feature.geometry?.type === 'Point' && Array.isArray(feature.geometry.coordinates)) {
+          const [lng, lat] = feature.geometry.coordinates;
+          const googleMapsLink = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+          content += `
+            <a href="${googleMapsLink}" target="_blank" title="Get Directions">
+              <img src="images/directions.png" alt="Get Directions" class="directions-inline-image">
+            </a>
+          `;
+        }
+        content += `</div>`;
+      }
+
+      if (props.Region) {
+        content += `<div class="card-subtitle subtitle-region">${props.Region} Fish & Game Region</div>`;
+      }
+
+      content += `<hr><ul class="card-list">`;
+      for (const [key, label] of Object.entries(displayFields)) {
+        if (props[key] !== undefined && props[key] !== '') {
+          content += `<li><b>${label}</b>: ${props[key]}</li>`;
+        }
+      }
+      if (props.URL1 && props.URL1.trim() !== "") {
+        content += `<li><b>More Information</b>: <a href="${props.URL1}" target="_blank" rel="noopener noreferrer">Click here</a></li>`;
+      }
+      content += `</ul></div></div>`; /* close panel-scroll + map-overlay-inner */
+      card.innerHTML = content;
+      openPanel('card');
+
+      if (photoList.length > 1) {
+        window.currentPhotoIndex = 0;
+        window.cardPhotoList = photoList;
+        window.updateCardImage = function () {
+          const img = document.getElementById('cardMainImage');
+          const url = window.cardPhotoList[window.currentPhotoIndex];
+          img.src = url;
+          img.onclick = () => openImageModal(url);
+        };
+        window.prevImage = function () {
+          window.currentPhotoIndex = (window.currentPhotoIndex - 1 + window.cardPhotoList.length) % window.cardPhotoList.length;
+          window.updateCardImage();
+        };
+        window.nextImage = function () {
+          window.currentPhotoIndex = (window.currentPhotoIndex + 1) % window.cardPhotoList.length;
+          window.updateCardImage();
+        };
+      }
+    };
+
+    let selectedPoint = null;
+    let selectedRiver = null;
+
+    const customImages = [
+      { name: 'AccessPoint-icon', url: 'images/FGAccess.png' },
+      { name: 'hut-icon', url: 'images/DOC Hut.png' },
+      { name: 'FlyFishing-icon', url: 'images/Flyfishing.png' },
+      { name: 'Trolling-icon', url: 'images/Trolling.png' },
+      { name: 'BoatRamp-icon', url: 'images/BoatRamp.png' },
+      { name: 'Jigging-icon', url: 'images/Jigging.png' },
+      { name: 'Hut-icon', url: 'images/DOC Hut.png' },
+      { name: 'Campsite-icon', url: 'images/DOC Camp.png' },
+      { name: '4x4Access-icon', url: 'images/4x4Access.png' },
+      { name: 'WalkingFGAccess-icon', url: 'images/WalkingAccess.png' },
+    ];
+
+    function loadCustomImages(map, callback) {
+      let imagesLoaded = 0;
+      customImages.forEach(({ name, url }) => {
+        map.loadImage(url, (error, image) => {
+          if (error) { console.error(`Error loading image "${name}" from ${url}:`, error); return; }
+          if (!map.hasImage(name)) { map.addImage(name, image); }
+          imagesLoaded++;
+          if (imagesLoaded === customImages.length && typeof callback === 'function') callback();
+        });
+      });
+    }
+
+    // Prepare icon size expression (prevents initial "flash")
+    let selectedFeatureId = null;
+    let hoverFeatureId = null;
+
+   function getIconSizeExpr(selectedId, hoverId) {
+  return [
+    'interpolate', ['linear'], ['zoom'],
+    7, 0.01,
+    12, [
+      'case',
+      // hover (but not selected)
+      ['all', ['==', ['id'], hoverId ?? -1], ['!=', ['id'], selectedId ?? -2]], 0.25,
+      // selected
+      ['==', ['id'], selectedId ?? -2], 0.30,
+      // default
+      0.20
+    ]
+  ];
+}
+
+    function updateIconSize() {
+      if(!map.getLayer('data-points-all')) return;
+      map.setLayoutProperty('data-points-all', 'icon-size', getIconSizeExpr(selectedFeatureId, hoverFeatureId));
+    }
+
+    const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+if (!isTouch) {
+  // keep your existing hover handlers for points/rivers here
+  // (mousemove, mouseenter, mouseleave)
+} else {
+  // Ensure no hover state remains on touch
+  hoverFeatureId = null;
+  if (map.getLayer('data-points-all')) updateIconSize();
+}
+
+    // Ensure images are loaded before adding layers
+    map.on('styledata', () => {
+      loadCustomImages(map, () => { addCustomDataAndLayers(); });
+    });
+
+function setBasemap(type) {
+  if (type === "Satellite") {
+    map.setStyle('https://basemaps.linz.govt.nz/v1/styles/aerial.json?api=d01hep5551e30kxb7w85hck49tp');
+  } else if (type === "TopoLite") {
+    map.setStyle('https://basemaps.linz.govt.nz/v1/styles/topolite.json?api=d01hep5551e30kxb7w85hck49tp');
+  } else if (type === "Topo") {
+    const TopoStyle = {
+      version: 8,
+      sources: {
+        'Topo-tiles': {
+          type: 'raster',
+          tiles: [
+            'https://basemaps.linz.govt.nz/v1/tiles/topo-raster/WebMercatorQuad/{z}/{x}/{y}.webp?api=c01jz4p0kp7pzdm5cgxrakw47mt'
+          ],
+          tileSize: 256,
+          attribution: '© <a href="//www.linz.govt.nz/linz-copyright">LINZ CC BY 4.0</a>'
+        }
+      },
+      layers: [{ id: 'Topo-tiles-layer', type: 'raster', source: 'Topo-tiles' }]
+    };
+    map.setStyle(TopoStyle);
+  }
+
+  // Update button highlight
+  document.querySelectorAll(".basemap-btn").forEach(btn => {
+    btn.classList.remove("active");
+    if (btn.dataset.basemap === type) {
+      btn.classList.add("active");
+    }
+  });
+}
+
+// Hook up the new basemap buttons
+document.querySelectorAll(".basemap-btn").forEach(btn => {
+  btn.addEventListener("click", () => setBasemap(btn.dataset.basemap));
+});
+
+// Default basemap selection
+window.addEventListener("load", () => {
+  setBasemap("Topo");
+});
+
+
+    // Legacy helper (safe no-op if container missing)
+    function updateLayerFilter() {
+      const container = document.getElementById('point-type-filter');
+      if (!container) return;
+      const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+      const selectedTypes = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+      const filter = ['in', ['get', 'point_type'], ['literal', selectedTypes]];
+      if (map.getLayer('data-points-all')) map.setFilter('data-points-all', filter);
+    }
+
+    const clearSelection = () => {
+      if (selectedRiver) {
+        map.setFeatureState({ source: 'AW Rivers', sourceLayer: 'waterways', id: selectedRiver.id }, { selected: false });
+        selectedRiver = null;
+      }
+      const input = document.getElementById('search');
+      const suggestions = document.getElementById('suggestions');
+      input.value = '';
+      suggestions.innerHTML = '';
+      suggestions.style.display = 'none';
+      card.innerHTML = '';
+      card.style.display = 'none';
+    };
+
+    const selectFeature = (feature) => {
+      clearSelection();
+      if (feature.layer.id === 'data-points-all') {
+        selectedPoint = feature;
+        map.setFeatureState({ source: 'data-points', id: feature.id }, { selected: true });
+      } else if (feature.layer.id === 'AW Rivers-line' || feature.layer.id === 'AW Rivers-fill') {
+        selectedRiver = feature;
+        map.setFeatureState({ source: 'AW Rivers', sourceLayer: 'waterways', id: feature.id }, { selected: true });
+      }
+      showCard(feature);
+    };
+
+    let allFeatures = [];
+    let allPointsFeatures = [];
+
+    fetch('search_index.geojson').then(res => res.json()).then(data => { allFeatures = data.features; });
+    fetch('http://170.64.164.127:8080/secure-geojson?token=fish-access-2025')
+      .then(res => res.json())
+      .then(data => { allPointsFeatures = data.features; })
+      .catch(err => console.error('Failed to load points data:', err));
+
+    const zoomLevel = document.getElementById('zoom-level');
+    zoomLevel.textContent = `Zoom: ${map.getZoom().toFixed(2)}`;
+    map.on('zoom', () => { zoomLevel.textContent = `Zoom: ${map.getZoom().toFixed(2)}`; });
+
+    // (Old) attach change listeners to legacy point filter — safe no-op if missing
+    const legacyCheckboxes = document.querySelectorAll('#point-type-filter input[type="checkbox"]');
+    legacyCheckboxes.forEach(cb => cb.addEventListener('change', updateLayerFilter));
+
+    function addCustomDataAndLayers() {
+      const sources = map.getStyle().sources;
+
+      let firstSymbolId = null;
+      let insertBeforeLayer = null;
+      for (const layer of map.getStyle().layers) {
+        if (!firstSymbolId && layer.type === 'symbol') firstSymbolId = layer.id;
+        if (layer.id === 'Housenumber') { insertBeforeLayer = 'Poi-SportsField'; break; }
+      }
+      if (!insertBeforeLayer) insertBeforeLayer = firstSymbolId;
+
+      if (!sources['PublicAccessAreas']) {
+        map.addSource('PublicAccessAreas', { type: 'vector', url: 'http://170.64.164.127:3000/combined_public_access_layers' });
+      }
+      if (!map.getLayer('PublicAccessAreas-fill')) {
+        map.addLayer({
+          id: 'PublicAccessAreas-fill',
+          type: 'fill',
+          source: 'PublicAccessAreas',
+          'source-layer': 'mylayer',
+          minzoom: 14,
+          paint: {
+            'fill-color':[
+              'match',['get','DataType'],
+              'DOC Conservation Area','#2d6c3e',
+              'Esplanade Reserve','#66f0cb',
+              'Esplanade Strip','#ff66dc',
+              'Hydro Parcel','#abecff',
+              'Non-Primary Parcel', '#ffcc66',
+              'Public Access Easement','#ffd8f1',
+              'Reserve Land','#a9cb66',
+              'Road Parcel','#cca3e1',
+              'Walkway Easement','#ffb2b2',
+              '#cccccc'
+            ],
+            'fill-opacity':[
+              'match',['get','DataType'],
+              'Non-Primary Parcel', .1,
+              .5
+            ],
+            'fill-outline-color': "white"
+          }
+        }, insertBeforeLayer);
+      }
+
+      if (!sources['AW Rivers']) {
+        map.addSource('AW Rivers', {
+          type: 'vector',
+          tiles: ['http://170.64.164.127:3000/all_waters/{z}/{x}/{y}'],
+          minzoom: 0, maxzoom: 13
+        });
+      }
+
+      if (!map.getLayer('AW Rivers-line')) {
+        map.addLayer({
+          id: 'AW Rivers-line',
+          type: 'line',
+          minzoom: 7,
+          source: 'AW Rivers',
+          'source-layer': 'waterways',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': [
+              'case',
+              ['any',
+                ['<', TODAY_UNIX, ['get', 'open_date_unix']],
+                ['>', TODAY_UNIX, ['get', 'close_date_unix']]
+              ],
+              ['case',
+                ['boolean', ['feature-state', 'selected'], false], '#ac261f',
+                ['boolean', ['feature-state', 'highlight'], false], '#f42f58',
+                '#f42f58'
+              ],
+              ['case',
+                ['boolean', ['feature-state', 'selected'], false], '#3949ab',
+                ['boolean', ['feature-state', 'highlight'], false], '#4ca6e6',
+                '#4ca6e6'
+              ]
+            ],
+            'line-width': [
+              'case',
+              ['boolean', ['feature-state', 'selected'], false], 7,
+              ['boolean', ['feature-state', 'highlight'], false], 5,
+              3
+            ],
+            'line-opacity':1
+          }
+        }, insertBeforeLayer);
+      }
+
+      if (!map.getLayer('AW Rivers-fill')) {
+        map.addLayer({
+          id: 'AW Rivers-fill',
+          type: 'fill',
+          minzoom: 7,
+          source: 'AW Rivers',
+          'source-layer': 'waterways',
+          paint: {
+            'fill-color': [
+              'case',
+              ['any',
+                ['<', TODAY_UNIX, ['get', 'open_date_unix']],
+                ['>', TODAY_UNIX, ['get', 'close_date_unix']]
+              ],
+              ['case',
+                ['boolean', ['feature-state', 'selected'], false], '#f42f58 ',
+                ['boolean', ['feature-state', 'highlight'], false], '#f42f58 ',
+                '#ec7983'
+              ],
+              ['case',
+                ['boolean', ['feature-state', 'selected'], false], '#4ca6e6',
+                ['boolean', ['feature-state', 'highlight'], false], '#4ca6e6',
+                '#79bcec'
+              ]
+            ],
+            'fill-opacity': [
+              'interpolate', ['linear'], ['zoom'],
+              14, 1,
+              14.01, .2
+            ]
+          }
+        }, insertBeforeLayer);
+      }
+
+      // Region labels (lighter + limited range)
+      const nzRegionsGeoJSON = {
+        type: "FeatureCollection",
+        features: [
+          { type: "Feature", properties: { name: "Northland" },  geometry: { type: "Point", coordinates: [174.3237, -35.7251] } },
+          { type: "Feature", properties: { name: "Wellington" }, geometry: { type: "Point", coordinates: [174.7772, -41.2889] } },
+          { type: "Feature", properties: { name: "Canterbury" }, geometry: { type: "Point", coordinates: [172.6362, -43.5321] } }
+        ]
+      };
+      if (!sources['nz-regions']) { map.addSource('nz-regions', { type: 'geojson', data: nzRegionsGeoJSON }); }
+      if (!map.getLayer('nz-region-labels')) {
+        map.addLayer({
+          id: 'nz-region-labels',
+          type: 'symbol',
+          source: 'nz-regions',
+          minzoom: 5, maxzoom: 7,
+          layout: {
+            'text-field': ['get', 'name'],
+            'text-size': 64,  /* reduced from 106 */
+            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+            'text-offset': [0, 0.7],
+            'text-anchor': 'top'
+          },
+          paint: { 'text-color': '#004d00', 'text-halo-color': '#ffffff', 'text-halo-width': 1.2 }
+        });
+      }
+
+      if (!sources['FG Regions']) {
+        map.addSource('FG Regions', { type: 'geojson', data: 'FG_dissolved.geojson' });
+      }
+      if (!map.getLayer('FG Regions-line')) {
+        map.addLayer({
+          id: 'FG Regions-line',
+          type: 'line',
+          source: 'FG Regions',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: { 'line-color': '#4A6741', 'line-width': 2, 'line-opacity': 1 }
+        }, insertBeforeLayer);
+      }
+
+      if (!sources['Routes']) map.addSource('Routes', { type: 'geojson', data: 'Routes.geojson' });
+      if (!map.getLayer('Routes-line')) {
+        map.addLayer({
+          id: 'Routes-line',
+          type: 'line',
+          source: 'Routes',
+          minzoom: 11.09,
+          paint: { 'line-width': ['get', 'line_width'], 'line-color': ['get', 'line_color'], 'line-dasharray': [2, 1] }
+        });
+      }
+
+      if (!sources['data-points']) {
+        map.addSource('data-points', {
+          type: 'geojson',
+          data: 'AccessPoints.geojson',
+          generateId: true
+        });
+      }
+      if (!map.getLayer('data-points-all')) {
+        map.addLayer({
+          id: 'data-points-all',
+          type: 'symbol',
+          source: 'data-points',
+          minzoom: 7,
+          layout: {
+            'icon-image': ['concat', ['get', 'point_type'], '-icon'],
+            'icon-size': getIconSizeExpr(selectedFeatureId, hoverFeatureId), /* final expr at creation */
+            'icon-anchor': 'bottom',
+            'icon-allow-overlap': true
+          }
+        });
+      }
+
+      if (!sources['search']) map.addSource('search', { type: 'geojson', data: 'search_index.geojson' });
+      if (!map.getLayer('search-points-all')) {
+        map.addLayer({
+          id: 'search-points-all',
+          type: 'circle',
+          source: 'search',
+          paint: { 'circle-radius': 5, 'circle-color': '#FF5733', 'circle-opacity': 0.0 }
+        });
+      }
+
+      // Wire filters
+      if (window.setupAWFilters) window.setupAWFilters(map);
+    }
+
+    // Public access hover popup (single handler)
+    const popup = document.createElement('div');
+    popup.style.position = 'absolute';
+    popup.style.pointerEvents = 'none';
+    popup.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+    popup.style.color = '#fff';
+    popup.style.fontFamily = 'Arial, sans-serif';
+    popup.style.padding = '4px 8px';
+    popup.style.borderRadius = '4px';
+    popup.style.fontSize = '12px';
+    popup.style.display = 'none';
+    document.body.appendChild(popup);
+
+    map.on('mousemove', 'PublicAccessAreas-fill', (e) => {
+      const feature = e.features?.[0];
+      if (feature) {
+        popup.style.display = 'block';
+        popup.textContent = feature.properties.DataType || 'No DataType';
+        popup.style.left = e.originalEvent.pageX + 10 + 'px';
+        popup.style.top = e.originalEvent.pageY + 10 + 'px';
+      }
+    });
+    map.on('mouseleave', 'PublicAccessAreas-fill', () => { popup.style.display = 'none'; });
+
+    // ======= Hover/selection with RAF throttling =======
+    map.on('click', 'data-points-all', e => {
+      selectedFeatureId = e.features[0].id;
+      hoverFeatureId = null;
+      updateIconSize();
+    });
+
+    // Unified click handler to prioritize points over rivers
+    map.on('click', (e) => {
+      const features = map.queryRenderedFeatures(e.point, {
+        layers: ['data-points-all', 'AW Rivers-line', 'AW Rivers-fill']
+      });
+      if (features.length === 0) { clearSelection(); card.style.display = 'none'; return; }
+      const pointFeature = features.find(f => f.layer.id === 'data-points-all');
+      const riverFeature = features.find(f => f.layer.id === 'AW Rivers-line') || features.find(f => f.layer.id === 'AW Rivers-fill');
+      if (pointFeature) selectFeature(pointFeature); else if (riverFeature) selectFeature(riverFeature);
+    });
+
+    map.on('click', (e) => {
+  const features = map.queryRenderedFeatures(e.point, {
+    layers: ['data-points-all'] // your point layer
+  });
+
+  if (features.length === 0) {
+    // Reset selection + hover when basemap is clicked
+    selectedFeatureId = null;
+    hoverFeatureId = null;
+    updateIconSize();
+  }
+});
+
+    let hoverDirty = false;
+    map.on('mousemove', 'data-points-all', e => {
+      map.getCanvas().style.cursor = 'pointer';
+      const hoveredId = e.features[0].id;
+      if (hoveredId !== selectedFeatureId && hoveredId !== hoverFeatureId) {
+        hoverFeatureId = hoveredId;
+        if (!hoverDirty) {
+          hoverDirty = true;
+          requestAnimationFrame(()=>{ hoverDirty = false; updateIconSize(); });
+        }
+      }
+    });
+    map.on('mouseleave', 'data-points-all', () => {
+      map.getCanvas().style.cursor = '';
+      if (hoverFeatureId !== null) {
+        hoverFeatureId = null;
+        requestAnimationFrame(updateIconSize);
+      }
+    });
+
+    let hoveredRiverId = null;
+    let hoveringLayers = new Set();
+    function updateCursor() {
+      map.getCanvas().style.cursor = (hoveringLayers.size > 0) ? 'pointer' : '';
+    }
+
+    // Throttled river hover (shared for line+fill)
+    let nextHoverId = null, hoverScheduled = false;
+    function setRiverHover(id) {
+      nextHoverId = id;
+      if (hoverScheduled) return;
+      hoverScheduled = true;
+      requestAnimationFrame(() => {
+        hoverScheduled = false;
+        if (hoveredRiverId !== nextHoverId) {
+          if (hoveredRiverId != null) {
+            map.setFeatureState({ source: 'AW Rivers', sourceLayer: 'waterways', id: hoveredRiverId }, { highlight: false });
+          }
+          hoveredRiverId = nextHoverId;
+          if (hoveredRiverId != null) {
+            map.setFeatureState({ source: 'AW Rivers', sourceLayer: 'waterways', id: hoveredRiverId }, { highlight: true });
+          }
+        }
+      });
+    }
+
+    map.on('mouseenter', 'AW Rivers-line', () => { hoveringLayers.add('line'); updateCursor(); });
+    map.on('mouseleave', 'AW Rivers-line', () => { hoveringLayers.delete('line'); updateCursor(); if (hoveringLayers.size===0) setRiverHover(null); });
+    map.on('mousemove', 'AW Rivers-line', (e) => { const f = e.features?.[0]; setRiverHover(f ? f.id : null); });
+
+    map.on('mouseenter', 'AW Rivers-fill', () => { hoveringLayers.add('fill'); updateCursor(); });
+    map.on('mouseleave', 'AW Rivers-fill', () => { hoveringLayers.delete('fill'); updateCursor(); if (hoveringLayers.size===0) setRiverHover(null); });
+    map.on('mousemove', 'AW Rivers-fill', (e) => { const f = e.features?.[0]; setRiverHover(f ? f.id : null); });
+
+    // Search (unchanged logic; could be debounced later if needed)
+    const inputEl = document.getElementById('search');
+    const suggestions = document.getElementById('suggestions');
+    inputEl.addEventListener('input', () => {
+      const query = inputEl.value.trim().toLowerCase();
+      suggestions.innerHTML = '';
+      if (!query) { suggestions.style.display = 'none'; return; }
+
+      const riverMatches = allFeatures.filter(f => f.properties.Water.toLowerCase().includes(query));
+      const pointMatches = allPointsFeatures.filter(f => f.properties.Title && f.properties.Title.toLowerCase().includes(query));
+
+      if (riverMatches.length) {
+        const header = document.createElement('div');
+        header.className = 'suggestion-header river-header';
+        header.innerHTML = `<span>WATERWAYS</span>`;
+        suggestions.appendChild(header);
+        riverMatches.forEach(f => {
+          const div = document.createElement('div');
+          div.className = 'suggestion river';
+          div.innerHTML = `
+            <strong>${f.properties.Water}</strong><br>
+            ${typeof f.properties.Section === 'string' && f.properties.Section ? `<div class="section">${f.properties.Section}</div>` : ''}
+            <div class="region">${f.properties.Region || ''}</div>`;
+          div.style.cursor = 'pointer';
+          div.onclick = () => selectFeatureFromSearch(f);
+          suggestions.appendChild(div);
+        });
+      }
+
+      if (pointMatches.length) {
+        const header = document.createElement('div');
+        header.className = 'suggestion-header point-header';
+        header.innerHTML = `<span> ACCESS POINTS</span>`;
+        suggestions.appendChild(header);
+        pointMatches.forEach(f => {
+          const div = document.createElement('div');
+          div.className = 'suggestion point';
+          div.innerHTML = `
+            <strong>${f.properties.Title}</strong><br>
+            <div class="region">${f.properties.Region || ''}</div>`;
+          div.style.cursor = 'pointer';
+          div.onclick = () => selectFeatureFromSearch(f);
+          suggestions.appendChild(div);
+        });
+      }
+
+      suggestions.style.display = (riverMatches.length || pointMatches.length) ? 'block' : 'none';
+    });
+
+    function selectFeatureFromSearch(f) {
+      const coords = f.geometry.coordinates;
+      clearSelection();
+      map.flyTo({ center: coords, zoom: 12 });
+
+      const isRiver = f.properties.Water !== undefined;
+      inputEl.value = isRiver ? f.properties.Water : f.properties.Title;
+      suggestions.style.display = 'none';
+      showCard(f);
+
+      if (isRiver) {
+        map.setFilter('AW Rivers-line', null);
+        map.setFilter('AW Rivers-fill', null);
+        map.setFeatureState({ source: 'AW Rivers', sourceLayer: 'waterways', id: f.id }, { selected: true });
+        selectedRiver = { id: f.id };
+      } else {
+        selectedFeatureId = f.id;
+        hoverFeatureId = null;
+        updateIconSize();
+        selectedPoint = { id: f.id };
+      }
+    }
+
+    // Initialize filter wiring now that the map object exists
+    if (window.setupAWFilters) window.setupAWFilters(map);
+    // Expose TODAY_UNIX to filter script
+    window.__TODAY_UNIX__ = TODAY_UNIX;
+  </script>
+
+</body>
+</html>
