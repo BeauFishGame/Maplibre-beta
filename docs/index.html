@@ -1083,7 +1083,7 @@ window.addEventListener("load", () => {
     let allPointsFeatures = [];
 
     fetch('search_index.geojson').then(res => res.json()).then(data => { allFeatures = data.features; });
-    fetch('http://170.64.164.127:8080/secure-geojson?token=fish-access-2025')
+    fetch('https://170.64.164.127:8080/secure-geojson?token=fish-access-2025')
       .then(res => res.json())
       .then(data => { allPointsFeatures = data.features; })
       .catch(err => console.error('Failed to load points data:', err));
@@ -1108,7 +1108,7 @@ window.addEventListener("load", () => {
       if (!insertBeforeLayer) insertBeforeLayer = firstSymbolId;
 
       if (!sources['PublicAccessAreas']) {
-        map.addSource('PublicAccessAreas', { type: 'vector', url: 'http://170.64.164.127:3000/combined_public_access_layers' });
+        map.addSource('PublicAccessAreas', { type: 'vector', url: 'https://170.64.164.127:3000/combined_public_access_layers' });
       }
       if (!map.getLayer('PublicAccessAreas-fill')) {
         map.addLayer({
@@ -1144,7 +1144,7 @@ window.addEventListener("load", () => {
       if (!sources['AW Rivers']) {
         map.addSource('AW Rivers', {
           type: 'vector',
-          tiles: ['http://170.64.164.127:3000/all_waters/{z}/{x}/{y}'],
+          tiles: ['https://170.64.164.127:3000/all_waters/{z}/{x}/{y}'],
           minzoom: 0, maxzoom: 13
         });
       }
