@@ -8,6 +8,9 @@ on:
 jobs:
   ensure-cname:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # 👈 allow this workflow to push commits
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,3 +32,5 @@ jobs:
           git add CNAME
           git commit -m "chore: enforce CNAME [skip ci]"
           git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
