@@ -227,7 +227,7 @@
     bottom: 0;
     left: 0;
     width: 100vw;
-    height: 60vh;                       /* bottom sheet height */
+    height: 40vh;                       /* bottom sheet height */
     border-radius: 14px 14px 0 0;
     padding-bottom: calc(16px + env(safe-area-inset-bottom));
   }
@@ -886,9 +886,9 @@ function toggleBasemaps(event) {
           const [lng, lat] = feature.geometry.coordinates;
           const googleMapsLink = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
           content += `
-            <a href="${googleMapsLink}" target="_blank" title="Get Directions">
-              <img src="images/directions.png" alt="Get Directions" class="directions-inline-image">
-            </a>
+       <a href="${googleMapsLink}" target="_blank" title="Get Directions" style="font-weight: normal; text-decoration: none; color: blue;">
+  (get directions)
+</a>
           `;
         }
         content += `</div>`;
@@ -1225,31 +1225,32 @@ window.addEventListener("load", () => {
       }
 
       // Region labels (lighter + limited range)
-      const nzRegionsGeoJSON = {
-        type: "FeatureCollection",
-        features: [
-          { type: "Feature", properties: { name: "Northland" },  geometry: { type: "Point", coordinates: [174.3237, -35.7251] } },
-          { type: "Feature", properties: { name: "Wellington" }, geometry: { type: "Point", coordinates: [174.7772, -41.2889] } },
-          { type: "Feature", properties: { name: "Canterbury" }, geometry: { type: "Point", coordinates: [172.6362, -43.5321] } }
-        ]
-      };
-      if (!sources['nz-regions']) { map.addSource('nz-regions', { type: 'geojson', data: nzRegionsGeoJSON }); }
-      if (!map.getLayer('nz-region-labels')) {
-        map.addLayer({
-          id: 'nz-region-labels',
-          type: 'symbol',
-          source: 'nz-regions',
-          minzoom: 5, maxzoom: 7,
-          layout: {
-            'text-field': ['get', 'name'],
-            'text-size': 64,  /* reduced from 106 */
-            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-            'text-offset': [0, 0.7],
-            'text-anchor': 'top'
-          },
-          paint: { 'text-color': '#004d00', 'text-halo-color': '#ffffff', 'text-halo-width': 1.2 }
-        });
-      }
+      // const nzRegionsGeoJSON = {
+      //   type: "FeatureCollection",
+      //   features: [
+      //     { type: "Feature", properties: { name: "Northland" },  geometry: { type: "Point", coordinates: [174.3237, -35.7251] } },
+      //     { type: "Feature", properties: { name: "Wellington" }, geometry: { type: "Point", coordinates: [174.7772, -41.2889] } },
+      //     { type: "Feature", properties: { name: "Canterbury" }, geometry: { type: "Point", coordinates: [172.6362, -43.5321] } }
+      //   ]
+      // };
+
+      // if (!sources['nz-regions']) { map.addSource('nz-regions', { type: 'geojson', data: nzRegionsGeoJSON }); }
+      // if (!map.getLayer('nz-region-labels')) {
+      //   map.addLayer({
+      //     id: 'nz-region-labels',
+      //     type: 'symbol',
+      //     source: 'nz-regions',
+      //     minzoom: 5, maxzoom: 7,
+      //     layout: {
+      //       'text-field': ['get', 'name'],
+      //       'text-size': 64,  /* reduced from 106 */
+      //       'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+      //       'text-offset': [0, 0.7],
+      //       'text-anchor': 'top'
+      //     },
+      //     paint: { 'text-color': '#004d00', 'text-halo-color': '#ffffff', 'text-halo-width': 1.2 }
+      //   });
+      // }
 
       // if (!sources['FG Regions']) {
       //   map.addSource('FG Regions', { type: 'geojson', data: 'FG_dissolved.geojson' });
@@ -1276,13 +1277,15 @@ map.addSource('FG Regions', {
         }, insertBeforeLayer);
       }
 
-      if (!sources['Routes']) map.addSource('Routes', { type: 'geojson', data: 'Routes.geojson' });
+      if (!sources['Routes']) map.addSource('Routes', { type: 'geojson', data: 'https://data.fishandgameaccessmap.org/secure-geojson/Routes.geojson?token=fish-access-2025' });
+
+
       if (!map.getLayer('Routes-line')) {
         map.addLayer({
           id: 'Routes-line',
           type: 'line',
           source: 'Routes',
-          minzoom: 11.09,
+          minzoom: 9.5,
           paint: { 'line-width': ['get', 'line_width'], 'line-color': ['get', 'line_color'], 'line-dasharray': [2, 1] }
         });
       }
