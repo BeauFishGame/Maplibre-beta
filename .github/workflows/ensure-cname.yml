@@ -1,0 +1,31 @@
+name: Ensure CNAME
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  ensure-cname:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Ensure CNAME file exists with correct domain
+        run: |
+          DOMAIN="beta.fishandgameaccessmap.org"
+          if [ ! -f CNAME ] || [ "$(cat CNAME)" != "$DOMAIN" ]; then
+            echo "$DOMAIN" > CNAME
+            echo "updated" > .cname.changed
+          fi
+
+      - name: Commit & push if changed
+        if: hashFiles('.cname.changed') != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CNAME
+          git commit -m "chore: enforce CNAME [skip ci]"
+          git push
