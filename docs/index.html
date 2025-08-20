@@ -1082,8 +1082,8 @@ window.addEventListener("load", () => {
     let allFeatures = [];
     let allPointsFeatures = [];
 
-    fetch('search_index.geojson').then(res => res.json()).then(data => { allFeatures = data.features; });
-    fetch('https://data.fishandgameaccessmap.org/secure-geojson?token=fish-access-2025')
+    fetch('https://data.fishandgameaccessmap.org/secure-geojson/waterway_search_index.geojson?token=fish-access-2025').then(res => res.json()).then(data => { allFeatures = data.features; });
+    fetch('https://data.fishandgameaccessmap.org/secure-geojson/AccessPoints.geojson?token=fish-access-2025')
       .then(res => res.json())
       .then(data => { allPointsFeatures = data.features; })
       .catch(err => console.error('Failed to load points data:', err));
@@ -1107,9 +1107,13 @@ window.addEventListener("load", () => {
       }
       if (!insertBeforeLayer) insertBeforeLayer = firstSymbolId;
 
+
       if (!sources['PublicAccessAreas']) {
-        map.addSource('PublicAccessAreas', { type: 'vector', url: 'https://data.fishandgameaccessmap.org/combined_public_access_layers' });
+        map.addSource('PublicAccessAreas', { type: 'vector', tiles: ['https://data.fishandgameaccessmap.org/combined_public_access_layers/{z}/{x}/{y}'] ,
+          minzoom: 0, maxzoom: 13
+        });
       }
+
       if (!map.getLayer('PublicAccessAreas-fill')) {
         map.addLayer({
           id: 'PublicAccessAreas-fill',
@@ -1247,14 +1251,26 @@ window.addEventListener("load", () => {
         });
       }
 
-      if (!sources['FG Regions']) {
-        map.addSource('FG Regions', { type: 'geojson', data: 'FG_dissolved.geojson' });
+      // if (!sources['FG Regions']) {
+      //   map.addSource('FG Regions', { type: 'geojson', data: 'FG_dissolved.geojson' });
+      // }
+
+
+ if (!sources['FG Regions']) {
+map.addSource('FG Regions', {
+          type: 'vector',
+          tiles: ['https://data.fishandgameaccessmap.org/fg_regions/{z}/{x}/{y}'],
+          minzoom: 0, maxzoom: 10
+        });
       }
+    
+      
       if (!map.getLayer('FG Regions-line')) {
         map.addLayer({
           id: 'FG Regions-line',
           type: 'line',
           source: 'FG Regions',
+          'source-layer': 'fg_regions',
           layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: { 'line-color': '#4A6741', 'line-width': 2, 'line-opacity': 1 }
         }, insertBeforeLayer);
@@ -1284,7 +1300,7 @@ window.addEventListener("load", () => {
       if (!sources['data-points']) {
                 map.addSource('data-points', {
                     type: 'geojson',
-                    data: 'https://data.fishandgameaccessmap.org/secure-geojson?token=fish-access-2025',
+                    data: 'https://data.fishandgameaccessmap.org/secure-geojson/AccessPoints.geojson?token=fish-access-2025',
                     generateId: true
                 });
             }
@@ -1305,7 +1321,7 @@ window.addEventListener("load", () => {
         });
       }
 
-      if (!sources['search']) map.addSource('search', { type: 'geojson', data: 'search_index.geojson' });
+      if (!sources['search']) map.addSource('search', { type: 'geojson', data: 'https://data.fishandgameaccessmap.org/secure-geojson/waterway_search_index.geojson?token=fish-access-2025' });
       if (!map.getLayer('search-points-all')) {
         map.addLayer({
           id: 'search-points-all',
